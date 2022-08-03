@@ -1,3 +1,10 @@
+"""
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# By Thomas LEFRANC
+
+# A program python to transform a video of a barrel organ into a MIDI file
+"""
 import cv2
 import numpy as np
 
