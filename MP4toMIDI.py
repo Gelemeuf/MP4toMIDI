@@ -17,6 +17,8 @@ from tkinter import filedialog as fd
 
 from PIL import ImageTk, Image
 
+import binascii
+
 #-------------------------
 #Variables globales
 #-------------------------
@@ -43,6 +45,7 @@ pos = [] #Liste de la position des notes sur la matrice à taille réelle
 line = [] #Liste des identifiants des lignes dessinées sur le canva
 
 Nt = [] #Fichier de l'état des notes
+fps = 0
 
 r = "" #Chemin du fichier vidéo initial afin de mettre le fichier midi final au même endroit
 
@@ -56,6 +59,8 @@ def MP4toMatrixVideo(file):
     frameCount = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frameWidth = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frameHeight = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    global fps
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     global vwidth
     vwidth = frameWidth
@@ -168,14 +173,33 @@ def NoteTab_to_MidiFile():
     global Nt
     
     #Création du fichier
-    fichier = open(r+".mid", "w")#Ecriture du fichier midi à la même adresse que le fichier mp4 en entrée
+    fichier = open(r+".mid", "wb")#Ecriture du fichier midi à la même adresse que le fichier mp4 en entrée
+    l = len(Nt[0])
     
-    #Conversion du tableau
-    for i in Nt:
-        for y in i:
-            print()
+    #Ecriture de l'entête
+    fichier.write("Mthd")
+    fichier.write(0)
+    fichier.write(0)
+    fichier.write(0)
+    fichier.write(6)#Taille de l'entête
+    fichier.write(0)#SMF
+    fichier.write(1)#SMF
+    fichier.write(l+1)#Nombre de notes + piste metadonnées
+    fichier.write(fps)#Nombre de divisions de la noire    
     
-    #Fermeture du fichier
+    #Ecriture de la structure des pistes
+        #Piste des metadonnées
+    """fichier.write("Mthd")
+    
+    #Ecriture des evenements à partir du tableau
+    for i in range(len(Nt)-1):
+        #On compare ligne à ligne
+        for y in range(l):
+            if(Nt[i][y] != Nt[i+1][y]):
+                #Alors une note à changer donc on l'écrit dans le fichier
+                fichier.write("o")
+        fichier.write("\n")
+    #Fermeture du fichier"""
     fichier.close()    
 
 #Permet de convertir un tableau numpy en une image
