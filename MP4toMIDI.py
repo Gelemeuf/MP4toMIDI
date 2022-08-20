@@ -17,7 +17,19 @@ from tkinter import filedialog as fd
 
 from PIL import ImageTk, Image
 
-import binascii
+import mido
+import random
+
+"""
+A ajouter:
+    -choix du nombre de colonnes de défilement entre deux images (augmentation de l'échantillonage)
+    -sauvegarde notes d'un intrument
+    -sauvegarde paramètre généraux
+    -choix de la position de l'enregistrement
+    -ajout sélection décalage début vidéo (si le fichier commence par directement à droite)
+    -ajout sélection décalage fin de vidéo (si le fichier ne finit pas complétement à gauche)
+    -choix à deux curseurs de l'exclusion pour le contraste
+"""
 
 #-------------------------
 #Variables globales
@@ -172,35 +184,42 @@ def MatrixContrasted_to_NoteTab():
 def NoteTab_to_MidiFile():
     global Nt
     
-    #Création du fichier
-    fichier = open(r+".mid", "wb")#Ecriture du fichier midi à la même adresse que le fichier mp4 en entrée
-    l = len(Nt[0])
+    l = len(Nt[0]) #Nombre de pistes
+    tracklist = [] #Indexation des pistes
     
-    #Ecriture de l'entête
-    fichier.write("Mthd")
-    fichier.write(0)
-    fichier.write(0)
-    fichier.write(0)
-    fichier.write(6)#Taille de l'entête
-    fichier.write(0)#SMF
-    fichier.write(1)#SMF
-    fichier.write(l+1)#Nombre de notes + piste metadonnées
-    fichier.write(fps)#Nombre de divisions de la noire    
+    outfile = mido.MidiFile(type=1)
     
-    #Ecriture de la structure des pistes
-        #Piste des metadonnées
-    """fichier.write("Mthd")
+    #On créer chaques pistes qu'on ajoute au pattern
+    for i in range(l):
+        track = mido.MidiTrack()
+        outfile.tracks.append(track)
+        tracklist.append(track)
     
-    #Ecriture des evenements à partir du tableau
-    for i in range(len(Nt)-1):
-        #On compare ligne à ligne
-        for y in range(l):
-            if(Nt[i][y] != Nt[i+1][y]):
-                #Alors une note à changer donc on l'écrit dans le fichier
-                fichier.write("o")
-        fichier.write("\n")
-    #Fermeture du fichier"""
-    fichier.close()    
+    # Pour un orgue de 29 les notes sont : Do2 - Ré2 - Fa2 - Sol2 - La2 - Do3 - 
+    #Ré3 - Mi3 - Fa3 - Fa#3 - Sol3 - Sol#3 - La3 - La#3 - Si3 - Do4 - Do#4 -
+    #Ré4 - Ré#4 - Mi4 - Fa4 - Fa#4 - Sol4 - Sol#4 - La4 - La#4 - Si4 - Do5 - Ré5.
+    
+    # Les fréquences correspondantes sont : 48, 50, 53, 55 ,57, 60, 62, 64, 65, 66, 
+    # 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86
+    
+    notes = [48, 50, 53, 55 ,57, 60, 62, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86]
+    ticks_per_expr = 50
+    
+    for y in range(l): #On parcours les notes:
+        delta = 0 #Temporalité du dernier changement
+        for i in range(len(Nt)): #On parcours la liste de l'état des notes                       
+            if(((Nt[i][y]) == 1) & ((Nt[i-1][y]) == 0)):#Si la note commence
+                tracklist[y].append(mido.Message('note_off', note=notes[y], velocity=100, time=i*ticks_per_expr-delta)) #On écrit que la note précédente a fini et sa durée jusque ici
+                delta = i*ticks_per_expr
+            elif(((Nt[i][y]) == 0) & ((Nt[i-1][y]) == 1)):#Si la note se termine
+                tracklist[y].append(mido.Message('note_on', note=notes[y], velocity=100, time=i*ticks_per_expr-delta)) #On écrit que la note  précédente à commencé et sa durée jusque ici
+                delta = i*ticks_per_expr
+        tracklist[y].append(mido.Message('note_off',note=notes[y], velocity=100,time = i*ticks_per_expr-delta))
+        
+    #On créer le fichier midi à la même adresse que le fichier mp4 chargé
+    global r
+    outfile.save(r+'.mid')
+    print("Le fichier midi a été crée : "+ r+'.mid')
 
 #Permet de convertir un tableau numpy en une image
 def Array_to_png(name,buf):
