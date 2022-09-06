@@ -18,18 +18,6 @@ from tkinter import filedialog as fd
 from PIL import ImageTk, Image
 
 import mido
-import random
-
-"""
-A ajouter:
-    -choix du nombre de colonnes de défilement entre deux images (augmentation de l'échantillonage)
-    -sauvegarde notes d'un intrument
-    -sauvegarde paramètre généraux
-    -choix de la position de l'enregistrement
-    -ajout sélection décalage début vidéo (si le fichier commence par directement à droite)
-    -ajout sélection décalage fin de vidéo (si le fichier ne finit pas complétement à gauche)
-    -choix à deux curseurs de l'exclusion pour le contraste
-"""
 
 #-------------------------
 #Variables globales
@@ -55,11 +43,20 @@ N = 1 #Numéro de l'image actuellement affiché
 
 pos = [] #Liste de la position des notes sur la matrice à taille réelle
 line = [] #Liste des identifiants des lignes dessinées sur le canva
+lineoffsetG = None
+lineoffsetD = None
+linepxim1 = None
+linepxim2 = None
 
 Nt = [] #Fichier de l'état des notes
-fps = 0
 
 r = "" #Chemin du fichier vidéo initial afin de mettre le fichier midi final au même endroit
+
+notes = []
+notes = [48, 50, 53, 55 ,57, 60, 62, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86]
+
+preset_note = "default29.notesmp4tomidi"
+preset_config = "default.confmp4tomidi"
 
 #-------------------------
 #Fonctions
@@ -98,6 +95,8 @@ def MP4toMatrixVideo(file):
     cursorA12.set(frameCount-1)
     sA11.config(to=frameCount-2)
     sA12.config(to=frameCount-1)
+    slider.config(from_=1)
+    slider.config(to=frameCount-1)
     
     return MatrixModif(M)
 
@@ -117,15 +116,18 @@ def MatrixModif(Mv):
 def MatrixImageToMatrixContrastedImage():
     global aM
     Mc = []
-    R = cursorA31.get()
-    G = cursorA32.get()
-    B = cursorA33.get()
+    Rmin = cursorA311.get()
+    Rmax = cursorA312.get()
+    Gmin = cursorA321.get()
+    Gmax = cursorA322.get()
+    Bmin = cursorA331.get()
+    Bmax = cursorA332.get()
     for i in aM:
         COL = []
         for y in i:
-            if(int(y[0])>int(R)):
-                if(int(y[1])>int(G)):
-                    if(int(y[2])>int(B)):
+            if(int(Rmax)>int(y[0])>int(Rmin)):
+                if(int(Gmax)>int(y[1])>int(Gmin)):
+                    if(int(Bmax)>int(y[2])>int(Bmin)):
                         COL.append([255,255,255])
                     else:
                         COL.append([0,0,0]) 
@@ -160,17 +162,20 @@ def MatrixContrasted_to_NoteTab():
     Nt = []
     global pos
     global M
-    R = cursorA31.get()
-    G = cursorA32.get()
-    B = cursorA33.get()
+    Rmin = cursorA311.get()
+    Rmax = cursorA312.get()
+    Gmin = cursorA321.get()
+    Gmax = cursorA322.get()
+    Bmin = cursorA331.get()
+    Bmax = cursorA332.get()
     for i in range(cursorA11.get(),cursorA12.get()+1):
         I = M[i]
         X= []
         for y in pos:
             Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
-            if(int(I[Y][0][0])>int(R)):
-                if(int(I[Y][0][1])>int(G)):
-                    if(int(I[Y][0][2])>int(B)):
+            if(int(Rmax)>=int(I[Y][0][0])>=int(Rmin)):
+                if(int(Gmax)>=int(I[Y][0][1])>=int(Gmin)):
+                    if(int(Bmax)>=int(I[Y][0][2])>=int(Bmin)):
                         X.append(1)
                     else:
                         X.append(0)
@@ -187,6 +192,22 @@ def NoteTab_to_MidiFile():
     l = len(Nt[0]) #Nombre de pistes
     tracklist = [] #Indexation des pistes
     
+    offsetGbutton = caseA13.get()
+    offsetDbutton = caseA14.get()
+    offsetGvalue = cursorA13.get()
+    offsetDvalue = cursorA14.get()
+    pxbetweentwoimagebutton = caseA15.get()
+    pxim1 = cursorA161.get() #On récupère la position de la ligne vertical 1
+    pxim2 = cursorA162.get() #On récupère la position de la ligne vertical 2
+    
+    #Définition du nombre de pixel à lire sur chaques images
+    pxmore = 0
+    if(pxbetweentwoimagebutton == 1):
+        pxmore = pxim2 - pxim1
+        if(pxmore <= 0): #Dans le cas ou les curseurs seraient inverser
+            pxmore = pxmore * -1
+        pxmore = pxmore/fwidth*fvwidth #On applique un rapport du à la modification de l'image sur le canva
+        
     outfile = mido.MidiFile(type=1)
     
     #On créer chaques pistes qu'on ajoute au pattern
@@ -202,7 +223,7 @@ def NoteTab_to_MidiFile():
     # Les fréquences correspondantes sont : 48, 50, 53, 55 ,57, 60, 62, 64, 65, 66, 
     # 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86
     
-    notes = [48, 50, 53, 55 ,57, 60, 62, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86]
+    global notes
     ticks_per_expr = 50
     
     for y in range(l): #On parcours les notes:
@@ -232,6 +253,19 @@ def aff_image():
     global aM
     global line
     global pos
+    global lineoffsetD
+    global lineoffsetG
+    global linepxim1
+    global linepxim2
+    
+    offsetGbutton = caseA13.get()
+    offsetDbutton = caseA14.get()
+    offsetGvalue = cursorA13.get()
+    offsetDvalue = cursorA14.get()
+    pxbetweentwoimagebutton = caseA15.get()
+    pxim1 = cursorA161.get() #On récupère la position de la ligne vertical 1
+    pxim2 = cursorA162.get() #On récupère la position de la ligne vertical 2
+    
     if(len(M) != 0):
         aM = M[N]
         #Choix de l'affichage en mode normal ou contrasté
@@ -244,6 +278,36 @@ def aff_image():
         img = ImageTk.PhotoImage(img)
         viewer.itemconfig(image_visualisation,image=img)
         viewer.imgref = img
+        
+        #Permet de créer ou détruite la ligne de l'offset à gauche de la première du canva
+        if(lineoffsetG != None):
+            viewer.delete(lineoffsetG)
+        if(cursorA11.get()==N):
+            if(offsetGbutton == 1):
+                lineoffsetG = viewer.create_line(offsetGvalue,0,offsetGvalue,fvheight,fill="green",width=2)
+            else:
+                viewer.delete(lineoffsetG)
+        
+        #Permet de créer ou détruite la ligne de l'offset à droite de la première du canva
+        if(lineoffsetD != None):
+            viewer.delete(lineoffsetD)
+        if(cursorA12.get()==N):
+            if(offsetDbutton == 1):
+                lineoffsetD = viewer.create_line(offsetDvalue,0,offsetDvalue,fvheight,fill="green",width=2)
+            else:
+                viewer.delete(lineoffsetD)
+
+        #Affichage ou non du premier et du deuxième pointeur permettant de mesurer le nombre de pixel défilent entre chaques images                
+        if(linepxim1 != None):
+            viewer.delete(linepxim1)
+        if(linepxim2 != None):
+            viewer.delete(linepxim2)
+        if(pxbetweentwoimagebutton == 1):
+            linepxim1 = viewer.create_line(pxim1,0,pxim1,fvheight,fill="blue",width=2)
+            linepxim2 = viewer.create_line(pxim2,0,pxim2,fvheight,fill="blue",width=2)
+        else:
+            viewer.delete(linepxim1)
+            viewer.delete(linepxim2)
         
         #Affichage des curseurs
         if(curseur.get() == 1): #On affiche tout les curseurs
@@ -279,22 +343,48 @@ def select_file():
     
     if(ext == ".mp4"):
         print(filename)
-        MP4toMatrixVideo(filename)     
- 
+        MP4toMatrixVideo(filename)
+        
+def choose_conf_file():
+    filetypes = (('conf mp4 to midi files', '*.confmp4tomidi'),('All files', '*.*'))
+    filename = fd.askopenfilename(title='Open a file',initialdir='/',filetypes=filetypes)   
+    
+    r,ext = os.path.splitext(filename)
+    
+    if(ext == ".confmp4tomidi"):
+        print(filename)
+
+def save_conf_file():   
+    return 0
+
+def choose_notes_file():
+    filetypes = (('conf mp4 to midi files', '*.notesmp4tomidi'),('All files', '*.*'))
+    filename = fd.askopenfilename(title='Open a file',initialdir='/',filetypes=filetypes)   
+         
+    r,ext = os.path.splitext(filename)
+    
+    if(ext == ".notesmp4tomidi"):
+        print(filename)
+        
+def save_notes_file():
+    return 0
+
 def cursor_change1():
     global N
     N = cursorA11.get()
-    global M
+    sliderval.set(N)
     aff_image()
     
 def cursor_change2():
     global N
     N = cursorA12.get()
-    global M
+    sliderval.set(N)
     aff_image()
     
-def print_note_cursor():
-    return 0    
+def slider_change(val):
+    global N
+    N = sliderval.get()
+    aff_image() 
     
 #-------------------------
 #Définition de la fenetre principale
@@ -316,41 +406,98 @@ root.iconbitmap("ico.ico")#définition de l'icone
    #Définition de la fenètre des paramètres
    #--------------
         
-ZoneA = tk.LabelFrame(root, text="Configuration", padx=3, pady=3)
+ZoneA = tk.LabelFrame(root, text="Configuration", padx=1, pady=1)
 ZoneA.pack(fill="both", expand="yes",side="left")
-     
+   
 #Définition du bouton pour ouvrir le fichier mp4
-open_button = ttk.Button(ZoneA,text='Ouvrir un fichier mp4',command=select_file)
-open_button.pack(expand=False,padx=3, pady=3)
+open_button_open = ttk.Button(ZoneA,text='Open mp4 file',command=select_file)
+open_button_open.pack(side="top",padx=1, pady=1)
     
    #--------------
    #Frame du selection de la première et dernière image
    #--------------
 
 ZoneA1 = tk.LabelFrame(ZoneA, text="Définition du fichier")
-ZoneA1.pack(padx=3, pady=3) 
+ZoneA1.pack(padx=2, pady=2) 
     
 #Définition de la zone 1
 ZoneA11 = tk.Frame(ZoneA1)
-ZoneA11.pack(padx=3, pady=3)
+ZoneA11.pack(padx=1, pady=1)
 #Texte du selectionneur
-label = tk.Label(ZoneA11, text="Première image")
+label = tk.Label(ZoneA11, text="Première image ")
 label.pack(side="left")
 #Selectionneur
 cursorA11 = tk.IntVar()    
 sA11 = tk.Spinbox(ZoneA11, from_=0, to=0,textvariable=cursorA11, command=cursor_change1)
 sA11.pack(side="right")
-    
+  
+ZoneA13 = tk.Frame(ZoneA1)
+ZoneA13.pack(padx=0, pady=0) 
+#Case cochable
+caseA13 = tk.IntVar()
+C13 = tk.Checkbutton(ZoneA13, variable = caseA13, onvalue = 1, offvalue = 0,command = aff_image)
+C13.pack(side="left")
+#Texte du selectionneur
+label = tk.Label(ZoneA13, text="offset gauche ")
+label.pack(side="left")
+#Selectionneur
+cursorA13 = tk.IntVar()    
+sA13 = tk.Spinbox(ZoneA13, from_=0, to=fvwidth,textvariable=cursorA13, command=aff_image)
+sA13.pack(side="right")
+  
 #Définition de la zone 2
 ZoneA12 = tk.Frame(ZoneA1)
-ZoneA12.pack(padx=3, pady=3)   
+ZoneA12.pack(padx=1, pady=1)   
 #Texte du selectionneur
-label = tk.Label(ZoneA12, text="Dernière image")
+label = tk.Label(ZoneA12, text="Dernière image ")
 label.pack(side="left")
 #Selectionneur
 cursorA12 = tk.IntVar()
 sA12 = tk.Spinbox(ZoneA12, from_=0, to=0,textvariable=cursorA12, command=cursor_change2)
 sA12.pack(side="right")  
+
+ZoneA14 = tk.Frame(ZoneA1)
+ZoneA14.pack(padx=0, pady=0) 
+#Case cochable
+caseA14 = tk.IntVar()
+C14 = tk.Checkbutton(ZoneA14, variable = caseA14, onvalue = 1, offvalue = 0,command = aff_image)
+C14.pack(side="left")
+#Texte du selectionneur
+label = tk.Label(ZoneA14, text="offset droit ")
+label.pack(side="left")
+#Selectionneur
+cursorA14 = tk.IntVar()
+cursorA14.set(fvwidth)
+sA14 = tk.Spinbox(ZoneA14, from_=0, to=fvwidth,textvariable=cursorA14, command=aff_image)
+sA14.pack(side="right")
+
+ZoneA15 = tk.Frame(ZoneA1)
+ZoneA15.pack(padx=0, pady=0) 
+#Texte du selectionneur
+label = tk.Label(ZoneA15, text="Nombres de pixels entre deux images")
+label.pack(side="left")
+#Case cochable
+caseA15 = tk.IntVar()
+C15 = tk.Checkbutton(ZoneA15, variable = caseA15, onvalue = 1, offvalue = 0,command = aff_image)
+C15.pack(side="left")
+
+ZoneA16 = tk.Frame(ZoneA1)
+ZoneA16.pack(padx=0, pady=0) 
+
+#Texte du selectionneur
+label = tk.Label(ZoneA16, text="position image 1 : ")
+label.pack(side="left")
+#Selectionneur
+cursorA161 = tk.IntVar()
+sA161 = tk.Spinbox(ZoneA16, from_=0, to=fvwidth, width = 8,textvariable=cursorA161, command=aff_image)
+sA161.pack(side="left")
+#Texte du selectionneur
+label = tk.Label(ZoneA16, text=" 2 :")
+label.pack(side="left")
+#Selectionneur
+cursorA162 = tk.IntVar()
+sA162 = tk.Spinbox(ZoneA16, from_=0, to=fvwidth, width = 8,textvariable=cursorA162, command=aff_image)
+sA162.pack(side="right")
     
    #--------------
    #Frame de positionnement du premier et dernier curseur
@@ -358,43 +505,47 @@ sA12.pack(side="right")
 
 #Définition de la zone 2
 ZoneA2 = tk.LabelFrame(ZoneA, text="Positionnement curseurs")
-ZoneA2.pack(padx=3, pady=3)
+ZoneA2.pack(padx=2, pady=2)
 
 ZoneA21 = tk.Frame(ZoneA2)
-ZoneA21.pack(padx=3, pady=3)   
+ZoneA21.pack(padx=1, pady=1)   
 #Texte du selectionneur
-label = tk.Label(ZoneA21, text="Nombre de notes")
+label = tk.Label(ZoneA21, text="Nombre de notes : ")
 label.pack(side="left")
 #Selectionneur
 cursorA21 = tk.IntVar()
 cursorA21.set(29)
-sA21 = tk.Spinbox(ZoneA21, from_=0, to=100,textvariable=cursorA21, command=print_note_cursor)
+sA21 = tk.Spinbox(ZoneA21, from_=0, to=100,textvariable=cursorA21, command=aff_image)
 sA21.pack(side="right") 
 
+#Définition du bouton pour ouvrir l'interface de sélection des notes
+applique_button = ttk.Button(ZoneA2,text='Selectionner les notes',command=aff_image)
+applique_button.pack(padx=1, pady=1) 
+
 curseur = tk.IntVar()
-C = tk.Checkbutton(ZoneA2 ,text = "Afficher les curseurs", variable = curseur, onvalue = 1, offvalue = 0)
+C = tk.Checkbutton(ZoneA2 ,text = "Afficher les curseurs de notes", variable = curseur, onvalue = 1, offvalue = 0,command = aff_image)
 C.pack()
 
 ZoneA22 = tk.Frame(ZoneA2)
-ZoneA22.pack(padx=3, pady=3)   
+ZoneA22.pack(padx=1, pady=1)   
 #Texte du selectionneur
-label = tk.Label(ZoneA22, text="Premier curseur")
+label = tk.Label(ZoneA22, text="Premier curseur : ")
 label.pack(side="left")
 #Selectionneur
 cursorA22 = tk.IntVar()
 cursorA22.set(0)
-sA22 = tk.Spinbox(ZoneA22, from_=0, to=500,textvariable=cursorA22, command=print_note_cursor)
+sA22 = tk.Spinbox(ZoneA22, from_=0, to=500,textvariable=cursorA22, command=aff_image)
 sA22.pack(side="right") 
 
 ZoneA23 = tk.Frame(ZoneA2)
-ZoneA23.pack(padx=3, pady=3)   
+ZoneA23.pack(padx=1, pady=1)   
 #Texte du selectionneur
-label = tk.Label(ZoneA23, text="Dernier curseur")
+label = tk.Label(ZoneA23, text="Dernier curseur : ")
 label.pack(side="left")
 #Selectionneur
 cursorA23 = tk.IntVar()
 cursorA23.set(500)
-sA23 = tk.Spinbox(ZoneA23, from_=0, to=500,textvariable=cursorA23, command=print_note_cursor)
+sA23 = tk.Spinbox(ZoneA23, from_=0, to=500,textvariable=cursorA23, command=aff_image)
 sA23.pack(side="right")      
 
    #--------------
@@ -406,49 +557,82 @@ ZoneA3 = tk.LabelFrame(ZoneA, text="Définition du contraste")
 ZoneA3.pack(padx=3, pady=3)
 
 select_contrasted = tk.IntVar()
-C = tk.Checkbutton(ZoneA3 ,text = "Afficher le contraste", variable = select_contrasted, onvalue = 1, offvalue = 0)
+C = tk.Checkbutton(ZoneA3 ,text = "Afficher le contraste", variable = select_contrasted, onvalue = 1, offvalue = 0,command = aff_image)
 C.pack()
 
-ZoneA31 = tk.Frame(ZoneA3)
-ZoneA31.pack(padx=3, pady=3)   
-label = tk.Label(ZoneA31, text="Rouge (0 à 255)")
+ZoneA311 = tk.Frame(ZoneA3)
+ZoneA311.pack(padx=1, pady=1)   
+label = tk.Label(ZoneA311, text="Rouge min (0 à 255)")
 label.pack(side="left")
 #Selectionneur
-cursorA31 = tk.IntVar()
-sA31 = tk.Spinbox(ZoneA31, from_=0, to=255,textvariable=cursorA31, command=MatrixImageToMatrixContrastedImage)
-sA31.pack(side="right")   
+cursorA311 = tk.IntVar()
+sA311 = tk.Spinbox(ZoneA311, from_=0, to=255,textvariable=cursorA311, command=MatrixImageToMatrixContrastedImage)
+sA311.pack(side="right")   
 
-ZoneA32 = tk.Frame(ZoneA3)
-ZoneA32.pack(padx=3, pady=3)   
-label = tk.Label(ZoneA32, text="Vert (0 à 255)")
+ZoneA312 = tk.Frame(ZoneA3)
+ZoneA312.pack(padx=1, pady=1)   
+label = tk.Label(ZoneA312, text="Rouge max (0 à 255)")
 label.pack(side="left")
 #Selectionneur
-cursorA32 = tk.IntVar()
-sA32 = tk.Spinbox(ZoneA32, from_=0, to=255,textvariable=cursorA32, command=MatrixImageToMatrixContrastedImage)
-sA32.pack(side="right")  
+cursorA312 = tk.IntVar()
+cursorA312.set(255)
+sA312 = tk.Spinbox(ZoneA312, from_=0, to=255,textvariable=cursorA312, command=MatrixImageToMatrixContrastedImage)
+sA312.pack(side="right")   
 
-ZoneA33 = tk.Frame(ZoneA3)
-ZoneA33.pack(padx=3, pady=3)   
-label = tk.Label(ZoneA33, text="Bleu (0 à 255)")
+ZoneA321 = tk.Frame(ZoneA3)
+ZoneA321.pack(padx=1, pady=1)   
+label = tk.Label(ZoneA321, text="Vert min (0 à 255)")
 label.pack(side="left")
 #Selectionneur
-cursorA33 = tk.IntVar()
-sA33 = tk.Spinbox(ZoneA33, from_=0, to=255,textvariable=cursorA33, command=MatrixImageToMatrixContrastedImage)
-sA33.pack(side="right")
+cursorA321 = tk.IntVar()
+sA321 = tk.Spinbox(ZoneA321, from_=0, to=255,textvariable=cursorA321, command=MatrixImageToMatrixContrastedImage)
+sA321.pack(side="right")  
 
+ZoneA322 = tk.Frame(ZoneA3)
+ZoneA322.pack(padx=1, pady=1)   
+label = tk.Label(ZoneA322, text="Vert max (0 à 255)")
+label.pack(side="left")
+#Selectionneur
+cursorA322 = tk.IntVar()
+cursorA322.set(255)
+sA322 = tk.Spinbox(ZoneA322, from_=0, to=255,textvariable=cursorA322, command=MatrixImageToMatrixContrastedImage)
+sA322.pack(side="right")
+
+ZoneA331 = tk.Frame(ZoneA3)
+ZoneA331.pack(padx=1, pady=1)   
+label = tk.Label(ZoneA331, text="Bleu min (0 à 255)")
+label.pack(side="left")
+#Selectionneur
+cursorA331 = tk.IntVar()
+sA331 = tk.Spinbox(ZoneA331, from_=0, to=255,textvariable=cursorA331, command=MatrixImageToMatrixContrastedImage)
+sA331.pack(side="right")
+
+ZoneA332 = tk.Frame(ZoneA3)
+ZoneA332.pack(padx=1, pady=1)   
+label = tk.Label(ZoneA332, text="Bleu max (0 à 255)")
+label.pack(side="left")
+#Selectionneur
+cursorA332 = tk.IntVar()
+cursorA332.set(255)
+sA332 = tk.Spinbox(ZoneA332, from_=0, to=255,textvariable=cursorA332, command=MatrixImageToMatrixContrastedImage)
+sA332.pack(side="right")
+
+ZoneAbutton = tk.Frame(ZoneA)
+ZoneAbutton.pack(padx=1, pady=1) 
+choose_button = ttk.Button(ZoneAbutton,text='Choose config',command=choose_conf_file)
+choose_button.pack(side="left",padx=1, pady=1)
+save_button = ttk.Button(ZoneAbutton,text='Save config',command=save_conf_file)
+save_button.pack(side="right",padx=1, pady=1)
+ 
 #Définition du bouton pour ouvrir le fichier mp4
-applique_button = ttk.Button(ZoneA,text='Appliquer',command=aff_image)
-applique_button.pack(padx=3, pady=3)  
-
-#Définition du bouton pour ouvrir le fichier mp4
-convert_button = ttk.Button(ZoneA,text='Convertir en fichier MIDI',command=MatrixContrasted_to_NoteTab)
-convert_button.pack(side="bottom",padx=10, pady=20)
-    
+convert_button = ttk.Button(ZoneA,text='Convert into MIDI',command=MatrixContrasted_to_NoteTab)
+convert_button.pack(side="bottom",padx=1, pady=1)
+   
 #-------------------------
 #Fenetre de visualisation
 #-------------------------
 
-ZoneB = tk.LabelFrame(root, text="Visualisation", padx=30, pady=30)
+ZoneB = tk.LabelFrame(root, text="Visualisation", padx=10, pady=10)
 ZoneB.pack(fill="both", expand="yes",side="left")
 
    #--------------
@@ -464,6 +648,10 @@ start_screen = ImageTk.PhotoImage(start_screen)
 image_visualisation= viewer.create_image(0,0,anchor ="nw", image=start_screen)
 
 viewer.pack() 
+
+sliderval = tk.IntVar()  
+slider = tk.Scale(ZoneB, from_=0, to=0, length=900, variable=sliderval, orient='horizontal',command=slider_change)
+slider.pack(side="bottom")
 #-------------------------
 #Lancement de la l'interface
 #-------------------------
