@@ -3,7 +3,7 @@
 
 # By Thomas LEFRANC
 
-# A program python to transform a video of a barrel organ into a MIDI file
+# A python program to transform a barrel organ cardboard MP4 video into a MIDI file
 """
 
 import os
@@ -18,6 +18,10 @@ from tkinter import filedialog as fd
 from PIL import ImageTk, Image
 
 import mido
+
+#Récupérer le dossier du programme
+ProgDir = ""
+ProgDir = os.getcwd()
 
 #-------------------------
 #Variables globales
@@ -52,11 +56,20 @@ Nt = [] #Fichier de l'état des notes
 
 r = "" #Chemin du fichier vidéo initial afin de mettre le fichier midi final au même endroit
 
-notes = []
-notes = [48, 50, 53, 55 ,57, 60, 62, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86]
+    
+    # Pour un orgue de 29 les notes sont : Do2 - Ré2 - Fa2 - Sol2 - La2 - Do3 - 
+    #Ré3 - Mi3 - Fa3 - Fa#3 - Sol3 - Sol#3 - La3 - La#3 - Si3 - Do4 - Do#4 -
+    #Ré4 - Ré#4 - Mi4 - Fa4 - Fa#4 - Sol4 - Sol#4 - La4 - La#4 - Si4 - Do5 - Ré5.
+    
+    # Les fréquences correspondantes sont : 48, 50, 53, 55 ,57, 60, 62, 64, 65, 66, 
+    # 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86
 
-preset_note = "default29.notesmp4tomidi"
-preset_config = "default.confmp4tomidi"
+Nn = 0
+notes = []
+
+#Listes
+liste_config_notes = []
+liste_config_general = []
 
 #-------------------------
 #Fonctions
@@ -78,18 +91,21 @@ def MP4toMatrixVideo(file):
     
     print("Video Selected :")    
     print("number of frame :", frameCount, "| Width :",frameWidth, ", Height :", frameHeight)
-    print("Conversion ...")
+    print("Conversion in progress...")
     
+    global M
     M = np.empty((frameCount, frameHeight, frameWidth, 3), np.dtype('uint8'))  
     fc = 0
+    frame = []
     ret = True
     while (fc < frameCount and ret):
-        ret, M[fc] = cap.read()
+        ret, frame = cap.read()       
+        M[fc] = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         fc += 1
         
     cap.release()
     
-    print("Conversion de la video en matrice terminée")
+    print("Convert video to matrix completed")
     
     cursorA11.set(1)
     cursorA12.set(frameCount-1)
@@ -97,20 +113,6 @@ def MP4toMatrixVideo(file):
     sA12.config(to=frameCount-1)
     slider.config(from_=1)
     slider.config(to=frameCount-1)
-    
-    return MatrixModif(M)
-
-#Permet de modifier la matrice en inversant les lignes et les couleurs pour corriger l'erreur lors de la création
-def MatrixModif(Mv):
-    global M  
-    Mm = Mv   
-    M = Mm
-    
-    global N
-    N = 1
-    aff_image()    
-    
-    return Mm
 
 #Permet de convertir une image RGB en une image noir et blanc contraster
 def MatrixImageToMatrixContrastedImage():
@@ -121,22 +123,41 @@ def MatrixImageToMatrixContrastedImage():
     Gmin = cursorA321.get()
     Gmax = cursorA322.get()
     Bmin = cursorA331.get()
-    Bmax = cursorA332.get()
-    for i in aM:
-        COL = []
-        for y in i:
-            if(int(Rmax)>int(y[0])>int(Rmin)):
-                if(int(Gmax)>int(y[1])>int(Gmin)):
-                    if(int(Bmax)>int(y[2])>int(Bmin)):
-                        COL.append([255,255,255])
+    Bmax = cursorA332.get()    
+    global inverse_contrasted
+    
+    if(inverse_contrasted.get()):
+        for i in aM:
+            COL = []
+            for y in i:
+                if(int(Rmax)>=int(y[0])>=int(Rmin)):
+                    if(int(Gmax)>=int(y[1])>=int(Gmin)):
+                        if(int(Bmax)>=int(y[2])>=int(Bmin)):
+                            COL.append([255,255,255])
+                        else:
+                            COL.append([0,0,0]) 
                     else:
-                        COL.append([0,0,0]) 
+                        COL.append([0,0,0])
                 else:
-                    COL.append([0,0,0])
-            else:
-                COL.append([0,0,0])       
-        Mc.append(COL)
-    return np.array(Mc,np.dtype('uint8'))
+                    COL.append([0,0,0])       
+            Mc.append(COL)
+        return np.array(Mc,np.dtype('uint8'))
+    else:
+        for i in aM:
+            COL = []
+            for y in i:
+                if((int(Rmax)<=int(y[0])<=int(Rmin))==0):
+                    if((int(Gmax)<=int(y[1])<=int(Gmin))==0):
+                        if((int(Bmax)<=int(y[2])<=int(Bmin))==0):
+                            COL.append([255,255,255])
+                        else:
+                            COL.append([0,0,0]) 
+                    else:
+                        COL.append([0,0,0])
+                else:
+                    COL.append([0,0,0])       
+            Mc.append(COL)
+        return np.array(Mc,np.dtype('uint8'))
 
 #Permet de convertir une matrice vidéo d'un carton défilent en une image
 def MatrixVideoToMatrix(buf,nframe,Width,Height,firstframe,lastframe):
@@ -167,23 +188,43 @@ def MatrixContrasted_to_NoteTab():
     Gmin = cursorA321.get()
     Gmax = cursorA322.get()
     Bmin = cursorA331.get()
-    Bmax = cursorA332.get()
-    for i in range(cursorA11.get(),cursorA12.get()+1):
-        I = M[i]
-        X= []
-        for y in pos:
-            Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
-            if(int(Rmax)>=int(I[Y][0][0])>=int(Rmin)):
-                if(int(Gmax)>=int(I[Y][0][1])>=int(Gmin)):
-                    if(int(Bmax)>=int(I[Y][0][2])>=int(Bmin)):
-                        X.append(1)
+    Bmax = cursorA332.get()    
+    global inverse_contrasted
+    
+    if(inverse_contrasted.get()):
+        for i in range(cursorA11.get(),cursorA12.get()+1):
+            I = M[i]
+            X= []
+            for y in pos:
+                Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
+                if(int(Rmax)>=int(I[Y][0][0])>=int(Rmin)):
+                    if(int(Gmax)>=int(I[Y][0][1])>=int(Gmin)):
+                        if(int(Bmax)>=int(I[Y][0][2])>=int(Bmin)):
+                            X.append(1)
+                        else:
+                            X.append(0)
                     else:
                         X.append(0)
                 else:
                     X.append(0)
-            else:
-                X.append(0)
-        Nt.append(X)
+            Nt.append(X)
+    else:
+        for i in range(cursorA11.get(),cursorA12.get()+1):
+            I = M[i]
+            X= []
+            for y in pos:
+                Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
+                if(int(Rmax)<=int(I[Y][0][0])<=int(Rmin)):
+                    if(int(Gmax)<=int(I[Y][0][1])<=int(Gmin)):
+                        if(int(Bmax)<=int(I[Y][0][2])<=int(Bmin)):
+                            X.append(1)
+                        else:
+                            X.append(0)
+                    else:
+                        X.append(0)
+                else:
+                    X.append(0)
+            Nt.append(X)
     NoteTab_to_MidiFile()
 
 def NoteTab_to_MidiFile():
@@ -216,13 +257,6 @@ def NoteTab_to_MidiFile():
         outfile.tracks.append(track)
         tracklist.append(track)
     
-    # Pour un orgue de 29 les notes sont : Do2 - Ré2 - Fa2 - Sol2 - La2 - Do3 - 
-    #Ré3 - Mi3 - Fa3 - Fa#3 - Sol3 - Sol#3 - La3 - La#3 - Si3 - Do4 - Do#4 -
-    #Ré4 - Ré#4 - Mi4 - Fa4 - Fa#4 - Sol4 - Sol#4 - La4 - La#4 - Si4 - Do5 - Ré5.
-    
-    # Les fréquences correspondantes sont : 48, 50, 53, 55 ,57, 60, 62, 64, 65, 66, 
-    # 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 86
-    
     global notes
     ticks_per_expr = 50
     
@@ -240,7 +274,7 @@ def NoteTab_to_MidiFile():
     #On créer le fichier midi à la même adresse que le fichier mp4 chargé
     global r
     outfile.save(r+'.mid')
-    print("Le fichier midi a été crée : "+ r+'.mid')
+    print("The midi file have been created at : "+ r+'.mid')
 
 #Permet de convertir un tableau numpy en une image
 def Array_to_png(name,buf):
@@ -310,14 +344,14 @@ def aff_image():
             viewer.delete(linepxim2)
         
         #Affichage des curseurs
-        if(curseur.get() == 1): #On affiche tout les curseurs
+        if(case_cursor.get() == 1): #On affiche tout les curseurs
         
             pos = []
             for i in line: #On supprime tout les curseurs
                 viewer.delete(i)
             line = []
             
-            Nn = cursorA21.get() #On récupère le nombre de notes
+            global Nn
             Fp = cursorA22.get() #On récupère la position de la première note
             Lp = cursorA23.get() #On récupère la position de la dernière note
             step = (Lp-Fp)/Nn
@@ -345,29 +379,152 @@ def select_file():
         print(filename)
         MP4toMatrixVideo(filename)
         
-def choose_conf_file():
-    filetypes = (('conf mp4 to midi files', '*.confmp4tomidi'),('All files', '*.*'))
-    filename = fd.askopenfilename(title='Open a file',initialdir='/',filetypes=filetypes)   
+def save_global_config():
+    global Save_file_name
+    global cursorA11
+    global cursorA12
+    global cursorA13
+    global cursorA14
+    global caseA13
+    global caseA14
+    global caseA15
+    global cursorA161
+    global cursorA162
+    global text_choose_notes
+    global case_cursor
+    global cursorA22
+    global cursorA23
+    global select_contrasted
+    global inverse_contrasted
+    global cursorA311
+    global cursorA312
+    global cursorA321
+    global cursorA322
+    global cursorA331
+    global cursorA332
+    fichier = open(ProgDir+"\\save_global\\"+Save_file_name.get()+".globalmp4tomidi", "w")
+    fichier.write(Save_file_name.get()+"\n")
+    fichier.write(str(cursorA11.get())+"\n")
+    fichier.write(str(cursorA12.get())+"\n")
+    fichier.write(str(cursorA13.get())+"\n")
+    fichier.write(str(cursorA14.get())+"\n")
+    fichier.write(str(caseA13.get())+"\n")
+    fichier.write(str(caseA14.get())+"\n")
+    fichier.write(str(caseA15.get())+"\n")
+    fichier.write(str(cursorA161.get())+"\n")
+    fichier.write(str(cursorA162.get())+"\n")
+    fichier.write(text_choose_notes.get()+"\n")
+    fichier.write(str(case_cursor.get())+"\n")
+    fichier.write(str(cursorA22.get())+"\n")
+    fichier.write(str(cursorA23.get())+"\n")
+    fichier.write(str(select_contrasted.get())+"\n")
+    fichier.write(str(inverse_contrasted.get())+"\n")
+    fichier.write(str(select_contrasted.get())+"\n")
+    fichier.write(str(cursorA311.get())+"\n")
+    fichier.write(str(cursorA312.get())+"\n")
+    fichier.write(str(cursorA321.get())+"\n")
+    fichier.write(str(cursorA322.get())+"\n")
+    fichier.write(str(cursorA331.get())+"\n")
+    fichier.write(str(cursorA332.get())+"\n")
+    fichier.close()
+    print("global file " + Save_file_name.get() + " successfully saved in :")
+    print(ProgDir+"\\save_global\\"+Save_file_name.get()+".globalmp4tomidi")
+    global liste_config_general
+    liste_config_general = []
+    liste_config_general.append("None")
+    extend_list_global()
+    global opt2
+    opt2.destroy()
+    opt2 = tk.OptionMenu(ZoneChoose, text_choose_general, *liste_config_general,command = select_global_setup)
+    opt2.pack(side="right")
+    Save_file_name.set("")
     
-    r,ext = os.path.splitext(filename)
-    
-    if(ext == ".confmp4tomidi"):
-        print(filename)
-
-def save_conf_file():   
-    return 0
-
-def choose_notes_file():
-    filetypes = (('conf mp4 to midi files', '*.notesmp4tomidi'),('All files', '*.*'))
-    filename = fd.askopenfilename(title='Open a file',initialdir='/',filetypes=filetypes)   
-         
-    r,ext = os.path.splitext(filename)
-    
-    if(ext == ".notesmp4tomidi"):
-        print(filename)
+def select_global_setup(x):
+    global text_choose_general
+    global cursorA11
+    global cursorA12
+    global cursorA13
+    global cursorA14
+    global caseA13
+    global caseA14
+    global caseA15
+    global cursorA161
+    global cursorA162
+    global text_choose_notes
+    global case_cursor
+    global cursorA22
+    global cursorA23
+    global select_contrasted
+    global inverse_contrasted
+    global cursorA311
+    global cursorA312
+    global cursorA321
+    global cursorA322
+    global cursorA331
+    global cursorA332
+    if(text_choose_general.get() == "None"):
+        return 0
+    else:
+        print("loading global file : "+text_choose_general.get()+"...")
+        fichier = open(ProgDir+"\\save_global\\"+text_choose_general.get()+".globalmp4tomidi", "r")
+        fichier.readline()
+        cursorA11.set(int(fichier.readline()[:-1]))
+        cursorA12.set(int(fichier.readline()[:-1]))
+        cursorA13.set(int(fichier.readline()[:-1]))
+        cursorA14.set(int(fichier.readline()[:-1]))
+        caseA13.set(int(fichier.readline()[:-1]))
+        caseA14.set(int(fichier.readline()[:-1]))
+        caseA15.set(int(fichier.readline()[:-1]))
+        cursorA161.set(int(fichier.readline()[:-1]))
+        cursorA162.set(int(fichier.readline()[:-1]))
+        text_choose_notes.set(fichier.readline()[:-1])
+        case_cursor.set(int(fichier.readline()[:-1]))
+        cursorA22.set(int(fichier.readline()[:-1]))
+        cursorA23.set(int(fichier.readline()[:-1]))
+        select_contrasted.set(int(fichier.readline()[:-1]))
+        inverse_contrasted.set(int(fichier.readline()[:-1]))
+        cursorA311.set(int(fichier.readline()[:-1]))
+        cursorA312.set(int(fichier.readline()[:-1]))
+        cursorA321.set(int(fichier.readline()[:-1]))
+        cursorA322.set(int(fichier.readline()[:-1]))
+        cursorA331.set(int(fichier.readline()[:-1]))
+        cursorA332.set(int(fichier.readline()[:-1]))
+        select_notes_setup(0)
+        print("global file successfully loaded")
         
-def save_notes_file():
-    return 0
+def select_notes_setup(x):
+    global text_choose_notes
+    global Nn
+    global notes
+    if(text_choose_notes.get() == "None"):
+        return 0
+    else:
+        print("loading note file : "+text_choose_notes.get()+"...")
+        fichier = open(ProgDir+"\\save_note\\"+text_choose_notes.get()+".notesmp4tomidi", "r")
+        Nn = int(fichier.readline())
+        print(Nn)
+        notes = []
+        for y in range(Nn):
+            notes.append(int(fichier.readline()))
+        print(notes)
+        print("note file successfully loaded")    
+        
+def extend_list_notes():
+    global liste_config_notes
+    liste_config_notes.append("None")
+    for filename in os.listdir(ProgDir+"\\save_note"):
+        filenamesplitted = filename.split(".")
+        if((len(filenamesplitted) == 2) & (filenamesplitted[1] == "notesmp4tomidi")):
+            liste_config_notes.append(filenamesplitted[0])
+
+
+def extend_list_global():
+    global liste_config_general
+    liste_config_general.append("None")
+    for filename in os.listdir(ProgDir+"\\save_global"):
+        filenamesplitted = filename.split(".")
+        if((len(filenamesplitted) == 2) & (filenamesplitted[1] == "globalmp4tomidi")):
+            liste_config_general.append(filenamesplitted[0])
 
 def cursor_change1():
     global N
@@ -384,7 +541,34 @@ def cursor_change2():
 def slider_change(val):
     global N
     N = sliderval.get()
-    aff_image() 
+    aff_image()
+    
+def motion(event):
+    x, y = event.x, event.y
+    R = 0
+    G = 0
+    B = 0
+    global aM
+    global vwidth
+    global vheight
+    global fvwidth
+    global fvheight
+    
+    if(len(aM) != 0): #On vérifie si le tableau contient des données
+        coeffy = vheight/fvheight
+        coeffx = vwidth/fvwidth
+        ry=int(y*coeffy)
+        rx=int(x*coeffx)
+        if((0<y<fvheight)&(0<x<fvwidth)):
+            R = aM[ry][rx][0]
+            G = aM[ry][rx][1]
+            B = aM[ry][rx][2]
+    
+    global text_coord
+    text_coord.set("X = "+ str(x) +"| Y = "+ str(y) +"| R = "+ str(R) +"| G = "+ str(G) +"| B = "+ str(B) +"")
+   
+def aff_error(event):
+    print("error")
     
 #-------------------------
 #Définition de la fenetre principale
@@ -406,7 +590,7 @@ root.iconbitmap("ico.ico")#définition de l'icone
    #Définition de la fenètre des paramètres
    #--------------
         
-ZoneA = tk.LabelFrame(root, text="Configuration", padx=1, pady=1)
+ZoneA = tk.LabelFrame(root, text="Setup", padx=1, pady=1)
 ZoneA.pack(fill="both", expand="yes",side="left")
    
 #Définition du bouton pour ouvrir le fichier mp4
@@ -417,14 +601,14 @@ open_button_open.pack(side="top",padx=1, pady=1)
    #Frame du selection de la première et dernière image
    #--------------
 
-ZoneA1 = tk.LabelFrame(ZoneA, text="Définition du fichier")
-ZoneA1.pack(padx=2, pady=2) 
+ZoneA1 = tk.LabelFrame(ZoneA, text="File definition")
+ZoneA1.pack(padx=2, pady=2,fill = "x") 
     
 #Définition de la zone 1
 ZoneA11 = tk.Frame(ZoneA1)
-ZoneA11.pack(padx=1, pady=1)
+ZoneA11.pack(padx=1, pady=1,fill = "x")
 #Texte du selectionneur
-label = tk.Label(ZoneA11, text="Première image ")
+label = tk.Label(ZoneA11, text="First image : ")
 label.pack(side="left")
 #Selectionneur
 cursorA11 = tk.IntVar()    
@@ -432,13 +616,13 @@ sA11 = tk.Spinbox(ZoneA11, from_=0, to=0,textvariable=cursorA11, command=cursor_
 sA11.pack(side="right")
   
 ZoneA13 = tk.Frame(ZoneA1)
-ZoneA13.pack(padx=0, pady=0) 
+ZoneA13.pack(padx=0, pady=0,fill = "x") 
 #Case cochable
 caseA13 = tk.IntVar()
 C13 = tk.Checkbutton(ZoneA13, variable = caseA13, onvalue = 1, offvalue = 0,command = aff_image)
 C13.pack(side="left")
 #Texte du selectionneur
-label = tk.Label(ZoneA13, text="offset gauche ")
+label = tk.Label(ZoneA13, text="Left offset :")
 label.pack(side="left")
 #Selectionneur
 cursorA13 = tk.IntVar()    
@@ -447,9 +631,9 @@ sA13.pack(side="right")
   
 #Définition de la zone 2
 ZoneA12 = tk.Frame(ZoneA1)
-ZoneA12.pack(padx=1, pady=1)   
+ZoneA12.pack(padx=1, pady=1,fill = "x")   
 #Texte du selectionneur
-label = tk.Label(ZoneA12, text="Dernière image ")
+label = tk.Label(ZoneA12, text="Last image : ")
 label.pack(side="left")
 #Selectionneur
 cursorA12 = tk.IntVar()
@@ -457,13 +641,13 @@ sA12 = tk.Spinbox(ZoneA12, from_=0, to=0,textvariable=cursorA12, command=cursor_
 sA12.pack(side="right")  
 
 ZoneA14 = tk.Frame(ZoneA1)
-ZoneA14.pack(padx=0, pady=0) 
+ZoneA14.pack(padx=0, pady=0,fill = "x") 
 #Case cochable
 caseA14 = tk.IntVar()
 C14 = tk.Checkbutton(ZoneA14, variable = caseA14, onvalue = 1, offvalue = 0,command = aff_image)
 C14.pack(side="left")
 #Texte du selectionneur
-label = tk.Label(ZoneA14, text="offset droit ")
+label = tk.Label(ZoneA14, text="Right offset :")
 label.pack(side="left")
 #Selectionneur
 cursorA14 = tk.IntVar()
@@ -472,20 +656,20 @@ sA14 = tk.Spinbox(ZoneA14, from_=0, to=fvwidth,textvariable=cursorA14, command=a
 sA14.pack(side="right")
 
 ZoneA15 = tk.Frame(ZoneA1)
-ZoneA15.pack(padx=0, pady=0) 
+ZoneA15.pack(padx=0, pady=0,fill = "x") 
 #Texte du selectionneur
-label = tk.Label(ZoneA15, text="Nombres de pixels entre deux images")
+label = tk.Label(ZoneA15, text="Number of pixels between two images")
 label.pack(side="left")
 #Case cochable
 caseA15 = tk.IntVar()
 C15 = tk.Checkbutton(ZoneA15, variable = caseA15, onvalue = 1, offvalue = 0,command = aff_image)
-C15.pack(side="left")
+C15.pack(side="right")
 
 ZoneA16 = tk.Frame(ZoneA1)
-ZoneA16.pack(padx=0, pady=0) 
+ZoneA16.pack(padx=0, pady=0,fill = "x") 
 
 #Texte du selectionneur
-label = tk.Label(ZoneA16, text="position image 1 : ")
+label = tk.Label(ZoneA16, text="Position on 1 : ")
 label.pack(side="left")
 #Selectionneur
 cursorA161 = tk.IntVar()
@@ -504,32 +688,30 @@ sA162.pack(side="right")
    #--------------    
 
 #Définition de la zone 2
-ZoneA2 = tk.LabelFrame(ZoneA, text="Positionnement curseurs")
-ZoneA2.pack(padx=2, pady=2)
+ZoneA2 = tk.LabelFrame(ZoneA, text="Positioning cursors")
+ZoneA2.pack(padx=2, pady=2,fill = "x")
 
 ZoneA21 = tk.Frame(ZoneA2)
-ZoneA21.pack(padx=1, pady=1)   
+ZoneA21.pack(padx=0, pady=0)  
 #Texte du selectionneur
-label = tk.Label(ZoneA21, text="Nombre de notes : ")
+label = tk.Label(ZoneA21, text="Notes setup : ")
 label.pack(side="left")
 #Selectionneur
-cursorA21 = tk.IntVar()
-cursorA21.set(29)
-sA21 = tk.Spinbox(ZoneA21, from_=0, to=100,textvariable=cursorA21, command=aff_image)
-sA21.pack(side="right") 
+extend_list_notes()
+text_choose_notes = tk.StringVar(ZoneA21)
+text_choose_notes.set(liste_config_notes[0])
+opt1 = tk.OptionMenu(ZoneA21, text_choose_notes, *liste_config_notes,command=select_notes_setup)
+opt1.pack(side="right")
 
-#Définition du bouton pour ouvrir l'interface de sélection des notes
-applique_button = ttk.Button(ZoneA2,text='Selectionner les notes',command=aff_image)
-applique_button.pack(padx=1, pady=1) 
-
-curseur = tk.IntVar()
-C = tk.Checkbutton(ZoneA2 ,text = "Afficher les curseurs de notes", variable = curseur, onvalue = 1, offvalue = 0,command = aff_image)
+#Case cochable
+case_cursor = tk.IntVar()
+C = tk.Checkbutton(ZoneA2 ,text = "Show notes cursors", variable = case_cursor, onvalue = 1, offvalue = 0,command = aff_image)
 C.pack()
 
 ZoneA22 = tk.Frame(ZoneA2)
-ZoneA22.pack(padx=1, pady=1)   
+ZoneA22.pack(padx=0, pady=0,fill = "x")   
 #Texte du selectionneur
-label = tk.Label(ZoneA22, text="Premier curseur : ")
+label = tk.Label(ZoneA22, text="First cursor : ")
 label.pack(side="left")
 #Selectionneur
 cursorA22 = tk.IntVar()
@@ -538,9 +720,9 @@ sA22 = tk.Spinbox(ZoneA22, from_=0, to=500,textvariable=cursorA22, command=aff_i
 sA22.pack(side="right") 
 
 ZoneA23 = tk.Frame(ZoneA2)
-ZoneA23.pack(padx=1, pady=1)   
+ZoneA23.pack(padx=0, pady=0,fill = "x")   
 #Texte du selectionneur
-label = tk.Label(ZoneA23, text="Dernier curseur : ")
+label = tk.Label(ZoneA23, text="Last cursor : ")
 label.pack(side="left")
 #Selectionneur
 cursorA23 = tk.IntVar()
@@ -553,16 +735,23 @@ sA23.pack(side="right")
    #--------------
 
 #Définition de la zone 3
-ZoneA3 = tk.LabelFrame(ZoneA, text="Définition du contraste")
-ZoneA3.pack(padx=3, pady=3)
+ZoneA3 = tk.LabelFrame(ZoneA, text="Contrast definition")
+ZoneA3.pack(padx=3, pady=3,fill = "x")
+
+ZoneA30 = tk.Frame(ZoneA3)
+ZoneA30.pack()
 
 select_contrasted = tk.IntVar()
-C = tk.Checkbutton(ZoneA3 ,text = "Afficher le contraste", variable = select_contrasted, onvalue = 1, offvalue = 0,command = aff_image)
-C.pack()
+C1 = tk.Checkbutton(ZoneA30 ,text = "Show contrast", variable = select_contrasted, onvalue = 1, offvalue = 0,command = aff_image)
+C1.pack(side="left")
+
+inverse_contrasted = tk.IntVar()
+C2 = tk.Checkbutton(ZoneA30 ,text = "Inverse", variable = inverse_contrasted, onvalue = 1, offvalue = 0,command = aff_image)
+C2.pack(side="right")
 
 ZoneA311 = tk.Frame(ZoneA3)
-ZoneA311.pack(padx=1, pady=1)   
-label = tk.Label(ZoneA311, text="Rouge min (0 à 255)")
+ZoneA311.pack(padx=1, pady=1,fill = "x")   
+label = tk.Label(ZoneA311, text="Red min (0 à 255)")
 label.pack(side="left")
 #Selectionneur
 cursorA311 = tk.IntVar()
@@ -570,8 +759,8 @@ sA311 = tk.Spinbox(ZoneA311, from_=0, to=255,textvariable=cursorA311, command=Ma
 sA311.pack(side="right")   
 
 ZoneA312 = tk.Frame(ZoneA3)
-ZoneA312.pack(padx=1, pady=1)   
-label = tk.Label(ZoneA312, text="Rouge max (0 à 255)")
+ZoneA312.pack(padx=0, pady=0,fill = "x")   
+label = tk.Label(ZoneA312, text="Red max (0 à 255)")
 label.pack(side="left")
 #Selectionneur
 cursorA312 = tk.IntVar()
@@ -580,8 +769,8 @@ sA312 = tk.Spinbox(ZoneA312, from_=0, to=255,textvariable=cursorA312, command=Ma
 sA312.pack(side="right")   
 
 ZoneA321 = tk.Frame(ZoneA3)
-ZoneA321.pack(padx=1, pady=1)   
-label = tk.Label(ZoneA321, text="Vert min (0 à 255)")
+ZoneA321.pack(padx=1, pady=1,fill = "x")   
+label = tk.Label(ZoneA321, text="Green min (0 à 255)")
 label.pack(side="left")
 #Selectionneur
 cursorA321 = tk.IntVar()
@@ -589,8 +778,8 @@ sA321 = tk.Spinbox(ZoneA321, from_=0, to=255,textvariable=cursorA321, command=Ma
 sA321.pack(side="right")  
 
 ZoneA322 = tk.Frame(ZoneA3)
-ZoneA322.pack(padx=1, pady=1)   
-label = tk.Label(ZoneA322, text="Vert max (0 à 255)")
+ZoneA322.pack(padx=0, pady=0,fill = "x")   
+label = tk.Label(ZoneA322, text="Green max (0 à 255)")
 label.pack(side="left")
 #Selectionneur
 cursorA322 = tk.IntVar()
@@ -599,8 +788,8 @@ sA322 = tk.Spinbox(ZoneA322, from_=0, to=255,textvariable=cursorA322, command=Ma
 sA322.pack(side="right")
 
 ZoneA331 = tk.Frame(ZoneA3)
-ZoneA331.pack(padx=1, pady=1)   
-label = tk.Label(ZoneA331, text="Bleu min (0 à 255)")
+ZoneA331.pack(padx=1, pady=1,fill = "x")   
+label = tk.Label(ZoneA331, text="Blue min (0 à 255)")
 label.pack(side="left")
 #Selectionneur
 cursorA331 = tk.IntVar()
@@ -608,8 +797,8 @@ sA331 = tk.Spinbox(ZoneA331, from_=0, to=255,textvariable=cursorA331, command=Ma
 sA331.pack(side="right")
 
 ZoneA332 = tk.Frame(ZoneA3)
-ZoneA332.pack(padx=1, pady=1)   
-label = tk.Label(ZoneA332, text="Bleu max (0 à 255)")
+ZoneA332.pack(padx=0, pady=0,fill = "x")   
+label = tk.Label(ZoneA332, text="Blue max (0 à 255)")
 label.pack(side="left")
 #Selectionneur
 cursorA332 = tk.IntVar()
@@ -617,12 +806,28 @@ cursorA332.set(255)
 sA332 = tk.Spinbox(ZoneA332, from_=0, to=255,textvariable=cursorA332, command=MatrixImageToMatrixContrastedImage)
 sA332.pack(side="right")
 
-ZoneAbutton = tk.Frame(ZoneA)
-ZoneAbutton.pack(padx=1, pady=1) 
-choose_button = ttk.Button(ZoneAbutton,text='Choose config',command=choose_conf_file)
-choose_button.pack(side="left",padx=1, pady=1)
-save_button = ttk.Button(ZoneAbutton,text='Save config',command=save_conf_file)
-save_button.pack(side="right",padx=1, pady=1)
+ZoneSave = tk.Frame(ZoneA)
+ZoneSave.pack(padx=1, pady=1) 
+save_button = ttk.Button(ZoneSave,text='Save config',command=save_global_config)
+save_button.pack(side="right",padx=3, pady=1)
+Save_file_name = tk.StringVar()
+Save_file = tk.Entry(ZoneSave,textvariable=Save_file_name)
+Save_file.pack(side="right",padx=3)
+label = tk.Label(ZoneSave,text = "Name :")
+label.pack(side="right")
+
+ZoneChoose = tk.Frame(ZoneA)
+ZoneChoose.pack(padx=0, pady=0)  
+#Texte du selectionneur
+label = tk.Label(ZoneChoose, text="General Setup :")
+label.pack(side="left")
+#Selectionneur
+extend_list_global()
+text_choose_general = tk.StringVar(ZoneChoose)
+text_choose_general.set(liste_config_general[0])
+opt2 = tk.OptionMenu(ZoneChoose, text_choose_general, *liste_config_general,command=select_global_setup)
+opt2.pack(side="right")
+
  
 #Définition du bouton pour ouvrir le fichier mp4
 convert_button = ttk.Button(ZoneA,text='Convert into MIDI',command=MatrixContrasted_to_NoteTab)
@@ -649,9 +854,29 @@ image_visualisation= viewer.create_image(0,0,anchor ="nw", image=start_screen)
 
 viewer.pack() 
 
+   #--------------
+   #Affichage des coordonnées et de la couleur du canva associée
+   #--------------
+
+text_coord = tk.StringVar()
+text_coord.set("X = ? | Y = ? | R = ? | G = ? | B = ?")
+coordonnees = tk.Label(ZoneB, textvariable=text_coord)
+coordonnees.pack()
+
+   #--------------+
+   #Choix de l'image à afficher
+   #--------------
+   
 sliderval = tk.IntVar()  
 slider = tk.Scale(ZoneB, from_=0, to=0, length=900, variable=sliderval, orient='horizontal',command=slider_change)
 slider.pack(side="bottom")
+
+#-------------------------
+#Récupérer position du curseur de la souris sur le canva
+#-------------------------
+
+viewer.bind('<Motion>', motion)
+
 #-------------------------
 #Lancement de la l'interface
 #-------------------------
