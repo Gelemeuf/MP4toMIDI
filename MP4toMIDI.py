@@ -114,6 +114,30 @@ def MP4toMatrixVideo(file):
     slider.config(from_=1)
     slider.config(to=frameCount-1)
 
+def ColorLimit(color,inv,Rmin,Rmax,Gmin,Gmax,Bmin,Bmax):
+    if(inv):
+        if(int(Rmax)>=int(color[0])>=int(Rmin)):
+            if(int(Gmax)>=int(color[1])>=int(Gmin)):
+                if(int(Bmax)>=int(color[2])>=int(Bmin)):
+                    return 1
+                else:
+                    return 0
+            else:
+                return 0
+        else:
+            return 0
+    else:    
+        if(int(Rmax)<=int(color[0])<=int(Rmin)):
+            if(int(Gmax)<=int(color[1])<=int(Gmin)):
+                if(int(Bmax)<=int(color[2])<=int(Bmin)):
+                    return 1
+                else:
+                    return 0
+            else:
+                return 0
+        else:
+            return 0
+
 #Permet de convertir une image RGB en une image noir et blanc contraster
 def MatrixImageToMatrixContrastedImage():
     global aM
@@ -177,90 +201,172 @@ def MatrixVideoToMatrix(buf,nframe,Width,Height,firstframe,lastframe):
         for m in range(6):  #6,4 px en réalité et non 6 
             Mv.append(col)
     return Mv
-
+                    
 def MatrixContrasted_to_NoteTab():
+    
+    #Le tableau final
     global Nt
     Nt = []
-    global pos
-    global M
+    
+    #Les paramètres utiles pour la conversion
+    offsetGbutton = caseA13.get()
+    offsetDbutton = caseA14.get()
+    offsetGvalue = int(cursorA13.get()/fwidth*fvwidth)
+    offsetDvalue = int(cursorA14.get()/fwidth*fvwidth)
     Rmin = cursorA311.get()
     Rmax = cursorA312.get()
     Gmin = cursorA321.get()
     Gmax = cursorA322.get()
     Bmin = cursorA331.get()
     Bmax = cursorA332.get()    
-    global inverse_contrasted
     
-    if(inverse_contrasted.get()):
-        for i in range(cursorA11.get(),cursorA12.get()+1):
-            I = M[i]
-            X= []
-            for y in pos:
-                Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
-                if(int(Rmax)>=int(I[Y][0][0])>=int(Rmin)):
-                    if(int(Gmax)>=int(I[Y][0][1])>=int(Gmin)):
-                        if(int(Bmax)>=int(I[Y][0][2])>=int(Bmin)):
-                            X.append(1)
-                        else:
-                            X.append(0)
-                    else:
-                        X.append(0)
-                else:
-                    X.append(0)
-            Nt.append(X)
-    else:
-        for i in range(cursorA11.get(),cursorA12.get()+1):
-            I = M[i]
-            X= []
-            for y in pos:
-                Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
-                if(int(Rmax)<=int(I[Y][0][0])<=int(Rmin)):
-                    if(int(Gmax)<=int(I[Y][0][1])<=int(Gmin)):
-                        if(int(Bmax)<=int(I[Y][0][2])<=int(Bmin)):
-                            X.append(1)
-                        else:
-                            X.append(0)
-                    else:
-                        X.append(0)
-                else:
-                    X.append(0)
-            Nt.append(X)
-    NoteTab_to_MidiFile()
-
-def NoteTab_to_MidiFile():
-    global Nt
-    
-    l = len(Nt[0]) #Nombre de pistes
-    tracklist = [] #Indexation des pistes
-    
-    offsetGbutton = caseA13.get()
-    offsetDbutton = caseA14.get()
-    offsetGvalue = cursorA13.get()
-    offsetDvalue = cursorA14.get()
     pxbetweentwoimagebutton = caseA15.get()
     pxim1 = cursorA161.get() #On récupère la position de la ligne vertical 1
     pxim2 = cursorA162.get() #On récupère la position de la ligne vertical 2
     
     #Définition du nombre de pixel à lire sur chaques images
-    pxmore = 0
+    global pxpi
+    pxpi = 1
     if(pxbetweentwoimagebutton == 1):
-        pxmore = pxim2 - pxim1
-        if(pxmore <= 0): #Dans le cas ou les curseurs seraient inverser
-            pxmore = pxmore * -1
-        pxmore = pxmore/fwidth*fvwidth #On applique un rapport du à la modification de l'image sur le canva
+        pxpi = pxim2 - pxim1
+        if(pxpi < 0): #Dans le cas ou les curseurs seraient inverser
+            pxpi = pxpi * -1
+        pxpi = pxpi/fwidth*fvwidth #On applique un rapport du à la modification de l'image sur le canva
+        pxpi = int(pxpi)
+     
+    #Lecture du début de fichier en prennant en compte l'offset   
+    nimgG = 0
+    if(offsetGbutton):
+        moveG = offsetGvalue%pxpi #Nombre de pixels à lire avant de décaler d'images
+        nimgG = int(offsetGvalue/pxpi) #Nombre d'image à décaler
+        
+        if(inverse_contrasted.get()): #Si les couleurs sont inclusive
+            for i in range(moveG):
+                I = M[cursorA11.get()+nimgG-1]
+                X= [] #Colonne contenant les notes post constrast
+                for y in pos:
+                    Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
+                    if(int(Rmax)>=int(I[Y][nimgG*pxpi+i][0])>=int(Rmin)):
+                        if(int(Gmax)>=int(I[Y][nimgG*pxpi+i][1])>=int(Gmin)):
+                            if(int(Bmax)>=int(I[Y][nimgG*pxpi+i][2])>=int(Bmin)):
+                                X.append(1)
+                            else:
+                                X.append(0)
+                        else:
+                            X.append(0)
+                    else:
+                        X.append(0)
+                Nt.append(X) 
+        else:
+            for i in range(moveG):
+                I = M[cursorA11.get()+nimgG-1]
+                X= [] #Colonne contenant les notes post constrast
+                for y in pos:
+                    Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
+                    if(int(Rmax)<=int(I[Y][nimgG*pxpi+i][0])<=int(Rmin)):
+                        if(int(Gmax)<=int(I[Y][nimgG*pxpi+i][1])<=int(Gmin)):
+                            if(int(Bmax)<=int(I[Y][nimgG*pxpi+i][2])<=int(Bmin)):
+                                X.append(1)
+                            else:
+                                X.append(0)
+                        else:
+                            X.append(0)
+                    else:
+                        X.append(0)
+                Nt.append(X)
+    
+    #La conversion prennant en compte le contraste et l'inversion
+    if(inverse_contrasted.get()): #Si les couleurs sont inclusive
+        for i in range(cursorA11.get()+nimgG,cursorA12.get()+1):
+            for dpx in range(pxpi):
+                I = M[i] #image i de la vidéo
+                X= [] #Colonne contenant les notes post constrast
+                for y in pos:
+                    Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
+                    if(int(Rmax)>=int(I[Y][dpx][0])>=int(Rmin)):
+                        if(int(Gmax)>=int(I[Y][dpx][1])>=int(Gmin)):
+                            if(int(Bmax)>=int(I[Y][dpx][2])>=int(Bmin)):
+                                X.append(1)
+                            else:
+                                X.append(0)
+                        else:
+                            X.append(0)
+                    else:
+                        X.append(0)
+                Nt.append(X)           
+    else: #Si les couleurs sont exclusives
+        for i in range(cursorA11.get()+nimgG,cursorA12.get()+1):
+            for dpx in range(pxpi):
+                I = M[i] #image i de la vidéo
+                X= [] #Colonne contenant les notes post constrast
+                for y in pos:
+                    Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
+                    if(int(Rmax)<=int(I[Y][dpx][0])<=int(Rmin)):
+                        if(int(Gmax)<=int(I[Y][dpx][1])<=int(Gmin)):
+                            if(int(Bmax)<=int(I[Y][dpx][2])<=int(Bmin)):
+                                X.append(1)
+                            else:
+                                X.append(0)
+                        else:
+                            X.append(0)
+                    else:
+                        X.append(0)
+                Nt.append(X)
+                
+    #Lecture de la fin du fichier en prennant en compte l'offset  
+    if(offsetDbutton):
+        I = M[cursorA12.get()]
+        if(inverse_contrasted.get()): #Si les couleurs sont inclusive
+            for z in range(pxpi,offsetDvalue):
+                X= [] #Colonne contenant les notes post constrast
+                for y in pos:
+                    Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
+                    if(int(Rmax)<=int(I[Y][z][0])<=int(Rmin)):
+                        if(int(Gmax)<=int(I[Y][z][1])<=int(Gmin)):
+                            if(int(Bmax)<=int(I[Y][z][2])<=int(Bmin)):
+                                X.append(1)
+                            else:
+                                X.append(0)
+                        else:
+                            X.append(0)
+                    else:
+                        X.append(0)
+                Nt.append(X)
+        else: #Si les couleurs sont exclusives
+            for z in range(pxpi,offsetDvalue):
+                X= [] #Colonne contenant les notes post constrast
+                for y in pos:
+                    Y = int(y*vheight/fvheight) #Pour en prendre en compte le changement de dimension sur la fenetre d'affichage
+                    if(int(Rmax)<=int(I[Y][z][0])<=int(Rmin)):
+                        if(int(Gmax)<=int(I[Y][z][1])<=int(Gmin)):
+                            if(int(Bmax)<=int(I[Y][z][2])<=int(Bmin)):
+                                 X.append(1)
+                            else:
+                                X.append(0)
+                        else:
+                            X.append(0)
+                    else:
+                        X.append(0)
+                Nt.append(X)
+            
+    NoteTab_to_MidiFile()
+
+def NoteTab_to_MidiFile():
+    
+    tracklist = [] #Indexation des pistes
         
     outfile = mido.MidiFile(type=1)
     
     #On créer chaques pistes qu'on ajoute au pattern
-    for i in range(l):
+    for i in range(Nn):
         track = mido.MidiTrack()
         outfile.tracks.append(track)
         tracklist.append(track)
     
     global notes
-    ticks_per_expr = 50
+    ticks_per_expr = 7
     
-    for y in range(l): #On parcours les notes:
+    for y in range(Nn): #On parcours les notes:
         delta = 0 #Temporalité du dernier changement
         for i in range(len(Nt)): #On parcours la liste de l'état des notes                       
             if(((Nt[i][y]) == 1) & ((Nt[i-1][y]) == 0)):#Si la note commence
@@ -291,7 +397,7 @@ def aff_image():
     global lineoffsetG
     global linepxim1
     global linepxim2
-    
+
     offsetGbutton = caseA13.get()
     offsetDbutton = caseA14.get()
     offsetGvalue = cursorA13.get()
@@ -419,7 +525,6 @@ def save_global_config():
     fichier.write(str(cursorA23.get())+"\n")
     fichier.write(str(select_contrasted.get())+"\n")
     fichier.write(str(inverse_contrasted.get())+"\n")
-    fichier.write(str(select_contrasted.get())+"\n")
     fichier.write(str(cursorA311.get())+"\n")
     fichier.write(str(cursorA312.get())+"\n")
     fichier.write(str(cursorA321.get())+"\n")
@@ -491,6 +596,7 @@ def select_global_setup(x):
         cursorA332.set(int(fichier.readline()[:-1]))
         select_notes_setup(0)
         print("global file successfully loaded")
+    aff_image()
         
 def select_notes_setup(x):
     global text_choose_notes
@@ -502,12 +608,13 @@ def select_notes_setup(x):
         print("loading note file : "+text_choose_notes.get()+"...")
         fichier = open(ProgDir+"\\save_note\\"+text_choose_notes.get()+".notesmp4tomidi", "r")
         Nn = int(fichier.readline())
-        print(Nn)
+        #print(Nn)
         notes = []
         for y in range(Nn):
             notes.append(int(fichier.readline()))
-        print(notes)
-        print("note file successfully loaded")    
+        #print(notes)
+        print("note file successfully loaded")   
+    aff_image()
         
 def extend_list_notes():
     global liste_config_notes
@@ -569,6 +676,9 @@ def motion(event):
    
 def aff_error(event):
     print("error")
+
+def Enterevent(event):
+    aff_image()
     
 #-------------------------
 #Définition de la fenetre principale
@@ -581,6 +691,8 @@ root.geometry(str(fwidth)+"x"+str(fheight))#définition de la taille de la fenê
 root.minsize(fwidth,fheight)#définition de la taille minimale de la fenêtre   
 root.maxsize(fwidth,fheight)#définition de la taille maximale de la fenêtre 
 root.iconbitmap("ico.ico")#définition de l'icone
+  
+root.bind('<Return>', Enterevent)
 
 #-------------------------
 #Fenetre des paramètres
@@ -602,11 +714,11 @@ open_button_open.pack(side="top",padx=1, pady=1)
    #--------------
 
 ZoneA1 = tk.LabelFrame(ZoneA, text="File definition")
-ZoneA1.pack(padx=2, pady=2,fill = "x") 
+ZoneA1.pack(padx=1, pady=1,fill = "x") 
     
 #Définition de la zone 1
 ZoneA11 = tk.Frame(ZoneA1)
-ZoneA11.pack(padx=1, pady=1,fill = "x")
+ZoneA11.pack(padx=0, pady=0,fill = "x")
 #Texte du selectionneur
 label = tk.Label(ZoneA11, text="First image : ")
 label.pack(side="left")
@@ -631,7 +743,7 @@ sA13.pack(side="right")
   
 #Définition de la zone 2
 ZoneA12 = tk.Frame(ZoneA1)
-ZoneA12.pack(padx=1, pady=1,fill = "x")   
+ZoneA12.pack(padx=0, pady=0,fill = "x")   
 #Texte du selectionneur
 label = tk.Label(ZoneA12, text="Last image : ")
 label.pack(side="left")
@@ -689,7 +801,7 @@ sA162.pack(side="right")
 
 #Définition de la zone 2
 ZoneA2 = tk.LabelFrame(ZoneA, text="Positioning cursors")
-ZoneA2.pack(padx=2, pady=2,fill = "x")
+ZoneA2.pack(padx=1, pady=1,fill = "x")
 
 ZoneA21 = tk.Frame(ZoneA2)
 ZoneA21.pack(padx=0, pady=0)  
