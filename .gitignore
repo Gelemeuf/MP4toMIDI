@@ -2,4 +2,9 @@
 *.png
 *.jpg
 *.ico
+build/
+dist/
+save_global/*
+.actual_image
+.MP4toMIDI.spec
 
