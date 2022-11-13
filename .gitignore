@@ -4,7 +4,8 @@
 *.ico
 build/
 dist/
-save_global/*
+.save_global/test.globalmp4tomidi
+.save_global/medley.globalmp4tomidi
 .actual_image
 .MP4toMIDI.spec
 
